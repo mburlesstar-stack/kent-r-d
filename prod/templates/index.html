@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kent Venue Finder — Maidstone · Canterbury · Tunbridge Wells &amp; more</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="logo">K</div>
+      <div>
+        <h1>Kent Venue Finder</h1>
+        <p>Weddings · Meetings · Conferences · Parties · Hotels · Restaurants — 8 towns</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <div class="tab-toggle">
+        <button class="tab-btn active" id="tabVenues" onclick="switchTab('venues')">Venue Finder</button>
+        <button class="tab-btn" id="tabAudit" onclick="switchTab('audit')">KentVenues Audit</button>
+      </div>
+      <span class="badge" id="totalBadge">— venues</span>
+      <button class="btn btn-ghost" onclick="document.getElementById('scrapePanel').classList.toggle('open')">Scrape</button>
+      <a class="btn btn-primary" href="#" onclick="exportData('csv'); return false;">Export CSV</a>
+      <a class="btn btn-outline" href="#" onclick="exportData('json'); return false;">Export JSON</a>
+    </div>
+  </div>
+</header>
+
+<!-- Scrape panel collapsible -->
+<div id="scrapePanel" class="scrape-panel">
+  <div class="scrape-inner">
+    <h3>Run Scraper</h3>
+    <p class="muted">Scrapes venues4hire.org + wedding venue directories for Kent venues. Filters by selected locations.</p>
+    <div class="scrape-controls">
+      <label>Delay (s) <input id="scrapeDelay" type="number" value="0.8" step="0.1" min="0.3"></label>
+      <label>Max pages/type (0=all) <input id="scrapeLimit" type="number" value="2" min="0" max="10"></label>
+      <button id="scrapeBtn" class="btn btn-primary" onclick="startScrape()">Start Scrape</button>
+      <span id="scrapeStatus" class="status"></span>
+    </div>
+    <pre id="scrapeLog" class="log"></pre>
+    <div class="divider" style="margin:14px 0"></div>
+    <h3>KentVenues.co.uk Audit</h3>
+    <p class="muted">Re-audits all 467 kentvenues.co.uk listings for missing photos, contact details, capacity etc. Runs <code>node audit.js</code> (3-5 min).</p>
+    <div class="scrape-controls">
+      <button id="auditBtn" class="btn btn-primary" onclick="startAudit()">Run Audit</button>
+      <span id="auditStatus" class="status"></span>
+    </div>
+    <pre id="auditLog" class="log"></pre>
+  </div>
+</div>
+
+<div id="venuesView">
+<div class="layout">
+  <aside class="filters">
+    <div class="filter-card">
+      <h3>Search</h3>
+      <div class="search-wrap">
+        <span class="search-icon">⌕</span>
+        <input id="searchInput" type="text" placeholder="Name, postcode, facilities..." autocomplete="off">
+        <button id="clearSearch" class="clear-btn" title="Clear">×</button>
+      </div>
+    </div>
+
+    <div class="filter-card">
+      <div class="filter-head">
+        <h3>Towns</h3>
+        <button class="link" onclick="toggleAll('location', true)">All</button>
+        <button class="link" onclick="toggleAll('location', false)">None</button>
+      </div>
+      <div class="check-grid" id="locationChecks">
+        {% for loc in locations %}
+        <label class="check"><input type="checkbox" class="loc-check" value="{{loc}}" checked> <span>{{ loc.replace('-',' ').title() }}</span></label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="filter-card">
+      <div class="filter-head">
+        <h3>Venue Type</h3>
+        <button class="link" onclick="toggleAll('type', true)">All</button>
+        <button class="link" onclick="toggleAll('type', false)">None</button>
+      </div>
+      <div class="check-list" id="typeChecks">
+        {% for vt in venue_types %}
+        <label class="check"><input type="checkbox" class="type-check" value="{{vt}}" checked> <span>{{vt}}</span></label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="filter-card">
+      <h3>Sort</h3>
+      <select id="sortSelect">
+        <option value="name">Name A-Z</option>
+        <option value="location">Location</option>
+        <option value="capacity">Capacity</option>
+      </select>
+    </div>
+
+    <div class="filter-card stats-card">
+      <h3>Stats (filtered)</h3>
+      <div id="statsLoc"></div>
+      <div class="divider"></div>
+      <div id="statsType"></div>
+      <div class="divider"></div>
+      <div class="muted small" id="sourceInfo"></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <span id="resultInfo" class="muted">Loading...</span>
+      </div>
+      <div class="toolbar-right">
+        <div class="view-toggle">
+          <button class="view-btn active" data-view="grid" onclick="setView('grid')">Grid</button>
+          <button class="view-btn" data-view="list" onclick="setView('list')">Table</button>
+        </div>
+        <select id="perPage">
+          <option value="24">24 / page</option>
+          <option value="48">48 / page</option>
+          <option value="96">96 / page</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="venueGrid" class="grid"></div>
+    <div id="venueTableWrap" class="table-wrap hidden">
+      <table class="table">
+        <thead><tr><th>Name</th><th>Location</th><th>Type</th><th>Capacity</th><th>Postcode</th><th>Contact</th><th>Website</th></tr></thead>
+        <tbody id="venueTableBody"></tbody>
+      </table>
+    </div>
+
+    <div id="pagination" class="pagination"></div>
+    <div id="emptyState" class="empty hidden">
+      <h3>No venues found</h3>
+      <p class="muted">Try clearing filters or run the scraper to fetch fresh data.</p>
+      <button class="btn btn-primary" onclick="clearFilters()">Clear filters</button>
+    </div>
+  </main>
+</div>
+</div><!-- /venuesView -->
+
+<!-- KentVenues Audit view -->
+<div id="auditView" class="hidden">
+  <div class="audit-hero">
+    <div class="stat-card">
+      <div class="stat-num" id="aStatTotal">—</div>
+      <div class="stat-label">Listings audited</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="aStatAvg">—</div>
+      <div class="stat-label">Average score</div>
+    </div>
+    <div class="stat-card danger">
+      <div class="stat-num" id="aStatCritical">—</div>
+      <div class="stat-label">Critical listings</div>
+    </div>
+    <div class="stat-card warn">
+      <div class="stat-num" id="aStatWarn">—</div>
+      <div class="stat-label">With warnings</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="aStatUnclaimed">—</div>
+      <div class="stat-label">Unclaimed</div>
+    </div>
+    <div class="stat-card meta-card">
+      <div class="stat-label" style="margin-bottom:4px">Audit data</div>
+      <div class="small muted" id="aStatMeta">—</div>
+    </div>
+    <div class="stat-card audit-action">
+      <button id="auditRunBtn" class="btn btn-primary" style="width:100%" onclick="startAudit()">Re-run Audit</button>
+      <div class="small muted" id="auditViewStatus">node audit.js · ~35s</div>
+    </div>
+  </div>
+
+  <div class="layout audit-layout">
+    <aside class="filters">
+      <div class="filter-card">
+        <h3>Search</h3>
+        <div class="search-wrap">
+          <span class="search-icon">⌕</span>
+          <input id="auditSearchInput" type="text" placeholder="Venue name..." autocomplete="off">
+          <button id="auditClearSearch" class="clear-btn" title="Clear">×</button>
+        </div>
+      </div>
+
+      <div class="filter-card">
+        <h3>Severity</h3>
+        <select id="auditSeverity" class="audit-select">
+          <option value="">All listings</option>
+          <option value="critical">Has critical issues</option>
+          <option value="warning">Has warnings</option>
+          <option value="suggestion">Has suggestions only</option>
+          <option value="good">No issues at all</option>
+        </select>
+      </div>
+
+      <div class="filter-card">
+        <div class="filter-head">
+          <h3>Issue Category</h3>
+          <button class="link" onclick="setAuditCategory('')">All</button>
+        </div>
+        <div id="auditCatBars" class="cat-bars"></div>
+      </div>
+
+      <div class="filter-card">
+        <h3>Flags</h3>
+        <label class="check"><input type="checkbox" id="auditUnclaimed"> <span>Unclaimed listings only</span></label>
+      </div>
+
+      <div class="filter-card">
+        <div class="filter-head">
+          <h3>Details</h3>
+          <button class="link" id="auditClearDetails" onclick="clearAuditDetailFilters()">All</button>
+        </div>
+        <div id="auditDetailPills" class="detail-pills"></div>
+      </div>
+
+      <div class="filter-card">
+        <h3>Sort</h3>
+        <select id="auditSort" class="audit-select">
+          <option value="score">Worst score first</option>
+          <option value="score-desc">Best score first</option>
+          <option value="name">Name A-Z</option>
+          <option value="issues">Most issues</option>
+        </select>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <span id="auditResultInfo" class="muted">Loading...</span>
+        </div>
+        <div class="toolbar-right">
+          <select id="auditPerPage">
+            <option value="24">24 / page</option>
+            <option value="48">48 / page</option>
+            <option value="96">96 / page</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Score</th><th>Venue</th><th>Flags</th><th>Photos</th><th>Amenities</th><th>Desc</th><th>Issues</th><th>Details</th></tr></thead>
+          <tbody id="auditTableBody"></tbody>
+        </table>
+      </div>
+
+      <div id="auditPagination" class="pagination"></div>
+      <div id="auditEmptyState" class="empty hidden">
+        <h3>No listings match</h3>
+        <p class="muted">Try clearing the audit filters.</p>
+        <button class="btn btn-primary" onclick="clearAuditFilters()">Clear audit filters</button>
+      </div>
+      <div id="auditNoData" class="empty hidden">
+        <h3>No audit data yet</h3>
+        <p class="muted">Run the KentVenues audit from the Scrape panel (takes 3-5 minutes).</p>
+        <button class="btn btn-primary" onclick="document.getElementById('scrapePanel').classList.add('open')">Open Scrape panel</button>
+      </div>
+    </main>
+  </div>
+</div><!-- /auditView -->
+
+<!-- Detail modal -->
+<div id="modal" class="modal hidden" onclick="if(event.target===this) closeModal()">
+  <div class="modal-card">
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KentVenues.co.uk Listing Auditor</title>
+<style>
+  :root { --bg:#0f1117; --surface:#1a1d27; --surface2:#232733; --border:#2e3344; --text:#e2e4ea; --dim:#8b90a0; --accent:#6c8cff; --green:#4ade80; --yellow:#facc15; --red:#f87171; --orange:#fb923c; --purple:#a78bfa; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+
+  .header { background:var(--surface); border-bottom:1px solid var(--border); padding:16px 24px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .header h1 { font-size:18px; font-weight:600; } .header h1 span { color:var(--accent); }
+  .header-actions { display:flex; gap:8px; align-items:center; }
+
+  button { background:var(--accent); color:#fff; border:none; padding:8px 16px; border-radius:7px; cursor:pointer; font-size:12px; font-weight:500; transition:opacity .2s; }
+  button:hover { opacity:.85; } button:disabled { opacity:.35; cursor:not-allowed; }
+  button.green { background:var(--green); color:#000; } button.purple { background:var(--purple); }
+
+  .container { max-width:1400px; margin:0 auto; padding:20px 24px; }
+
+  .drop-zone { border:2px dashed var(--border); border-radius:12px; padding:60px 20px; text-align:center; margin-bottom:20px; transition:border-color .2s; }
+  .drop-zone.over { border-color:var(--accent); }
+  .drop-zone h2 { font-size:16px; margin-bottom:6px; }
+  .drop-zone p { color:var(--dim); font-size:13px; }
+  .drop-zone input[type=file] { display:none; }
+
+  .stats-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:20px; }
+  .stat-card { background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:14px; }
+  .stat-card .label { font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:var(--dim); margin-bottom:2px; }
+  .stat-card .value { font-size:26px; font-weight:700; }
+  .stat-card .value.grn{color:var(--green)} .stat-card .value.ylw{color:var(--yellow)} .stat-card .value.red{color:var(--red)} .stat-card .value.acc{color:var(--accent)} .stat-card .value.pur{color:var(--purple)}
+
+  .cat-section { background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:16px; margin-bottom:16px; }
+  .cat-section h2 { font-size:14px; margin-bottom:12px; }
+  .cat-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .cat-label { width:120px; font-size:11px; text-transform:capitalize; flex-shrink:0; }
+  .cat-track { flex:1; height:7px; background:var(--surface2); border-radius:4px; overflow:hidden; }
+  .cat-fill { height:100%; background:var(--accent); border-radius:4px; transition:width .5s; }
+  .cat-val { width:75px; font-size:11px; color:var(--dim); text-align:right; flex-shrink:0; }
+
+  .controls { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center; }
+  .controls input[type=text], .controls select { background:var(--surface); border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:7px; font-size:12px; }
+  .controls input[type=text] { width:240px; }
+  .controls select { min-width:140px; }
+
+  .table-wrap { overflow-x:auto; border-radius:9px; border:1px solid var(--border); background:var(--surface); }
+  table { width:100%; border-collapse:collapse; }
+  thead th { background:var(--surface2); text-align:left; padding:9px 10px; font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:var(--dim); border-bottom:1px solid var(--border); cursor:pointer; white-space:nowrap; position:sticky; top:0; z-index:2; user-select:none; }
+  thead th:hover { color:var(--text); }
+  tbody td { padding:7px 10px; border-bottom:1px solid var(--border); font-size:12px; vertical-align:top; }
+  tbody tr:hover { background:var(--surface2); }
+
+  .venue-name { font-weight:600; } .venue-name a { color:var(--accent); text-decoration:none; } .venue-name a:hover { text-decoration:underline; }
+  .badge { display:inline-block; padding:1px 7px; border-radius:4px; font-size:10px; font-weight:500; }
+  .badge.critical { background:rgba(248,113,113,.15); color:var(--red); }
+  .badge.warning { background:rgba(250,204,21,.15); color:var(--yellow); }
+  .badge.ok { background:rgba(74,222,128,.15); color:var(--green); }
+  .badge.info { background:rgba(108,140,255,.15); color:var(--accent); }
+  .score-bar { width:50px; height:5px; background:var(--surface2); border-radius:3px; overflow:hidden; display:inline-block; vertical-align:middle; margin-right:4px; }
+  .score-fill { height:100%; border-radius:3px; }
+  .issue-list { list-style:none; max-width:320px; }
+  .issue-list li { padding:1px 0; font-size:11px; display:flex; gap:4px; align-items:baseline; line-height:1.3; }
+  .issue-list li::before { content:''; width:4px; height:4px; border-radius:50%; flex-shrink:0; margin-top:4px; }
+  .issue-list li.critical::before { background:var(--red); }
+  .issue-list li.warning::before { background:var(--yellow); }
+  .issue-list li.suggestion::before, .issue-list li.info::before { background:var(--purple); }
+  .issue-list li.ok { color:var(--green); } .issue-list li.ok::before { background:var(--green); }
+
+  .log { background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:10px; max-height:150px; overflow-y:auto; font-family:'Cascadia Code','Fira Code',monospace; font-size:11px; margin-bottom:14px; display:none; }
+  .log .e { color:var(--dim); } .log .err { color:var(--red); } .log .ok { color:var(--green); }
+
+  .progress-wrap { display:none; margin-bottom:14px; }
+  .progress-track { height:5px; background:var(--surface2); border-radius:3px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--accent); border-radius:3px; transition:width .3s; width:0%; }
+  .progress-text { font-size:11px; color:var(--dim); margin-top:4px; }
+
+  .count-badge { font-size:10px; color:var(--dim); margin-left:4px; }
+  @media(max-width:768px){ .container{padding:12px;} .controls input[type=text]{width:100%;} }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>KentVenues.co.uk <span>Listing Auditor</span></h1>
+  <div class="header-actions">
+    <button onclick="document.getElementById('fileInput').click()">Load Data File</button>
+    <input type="file" id="fileInput" accept=".json" onchange="loadFile(event)" style="display:none">
+    <button class="green" id="btnExportSummary" onclick="exportCSV('summary')" disabled>Summary CSV</button>
+    <button class="purple" id="btnExportIssues" onclick="exportCSV('issues')" disabled>Issues CSV</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="drop-zone" id="dropZone">
+    <h2>Load Audit Data</h2>
+    <p>Drag & drop <code>kentvenues-audit-data.json</code> here, or click "Load Data File" above.</p>
+    <p style="margin-top:10px;font-size:11px;color:var(--dim)">Run <code>node audit.js</code> first to generate the data file.</p>
+  </div>
+
+  <div id="dashboard" style="display:none">
+    <div class="stats-row" id="statsRow"></div>
+    <div class="cat-section" id="catSection"><h2>Issue Breakdown by Category</h2><div id="catBars"></div></div>
+    <div class="controls">
+      <input type="text" id="search" placeholder="Search venues..." oninput="applyFilters()">
+      <select id="fSeverity" onchange="applyFilters()">
+        <option value="">All Severity</option>
+        <option value="critical">Critical</option>
+        <option value="warning">Warnings</option>
+        <option value="good">Good Listings</option>
+      </select>
+      <select id="fCategory" onchange="applyFilters()">
+        <option value="">All Issue Types</option>
+        <option value="description">Poor Description</option>
+        <option value="capacity">Missing Capacity</option>
+        <option value="photos">Missing Photos</option>
+        <option value="facilities">Missing Facilities</option>
+        <option value="parking">Missing Parking</option>
+        <option value="catering">Missing Catering</option>
+        <option value="accommodation">Missing Accommodation</option>
+        <option value="accessibility">Missing Accessibility</option>
+        <option value="contact">Missing Contact</option>
+      </select>
+      <span class="count-badge" id="resultCount"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th data-sort="name">Venue</th>
+          <th data-sort="score">Score</th>
+          <th data-sort="severity">Severity</th>
+          <th data-sort="desc">Desc</th>
+          <th data-sort="photos">Photos</th>
+          <th data-sort="amenities">Amenities</th>
+          <th>Issues</th>
+          <th>Improvements</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="log" id="log"></div>
+<div class="progress-wrap" id="progressWrap">
+  <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="progress-text" id="progressText"></div>
+</div>
+
+<script>
+const BASE = 'https://www.kentvenues.co.uk';
+let DATA = null;
+let filtered = [];
+let sortKey = 'score', sortAsc = true;
+
+// Drag and drop
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); handleFile(e.dataTransfer.files[0]); });
+function loadFile(e) { if (e.target.files[0]) handleFile(e.target.files[0]); }
+
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      DATA = JSON.parse(e.target.result);
+      initDashboard();
+    } catch(err) { alert('Invalid JSON file: ' + err.message); }
+  };
+  reader.readAsText(file);
+}
+
+function initDashboard() {
+  document.getElementById('dropZone').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('btnExportSummary').disabled = false;
+  document.getElementById('btnExportIssues').disabled = false;
+
+  const { results, meta } = DATA;
+  const cats = meta.categories || ['description','capacity','photos','facilities','parking','catering','accommodation','accessibility','contact'];
+
+  // Stats
+  const critical = results.filter(v => v.issues.some(i => i.severity === 'critical')).length;
+  const warnings = results.filter(v => !v.issues.some(i => i.severity === 'critical') && v.issues.some(i => i.severity === 'warning')).length;
+  const good = results.filter(v => v.issues.length === 0).length;
+  const avgScore = results.length ? results.reduce((a,v) => a + v.score, 0) / results.length : 0;
+
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card"><div class="label">Total Venues</div><div class="value acc">${results.length}</div></div>
+    <div class="stat-card"><div class="label">Critical Issues</div><div class="value red">${critical}</div></div>
+    <div class="stat-card"><div class="label">Warnings</div><div class="value ylw">${warnings}</div></div>
+    <div class="stat-card"><div class="label">Good Listings</div><div class="value grn">${good}</div></div>
+    <div class="stat-card"><div class="label">Average Score</div><div class="value pur">${avgScore.toFixed(0)}%</div></div>`;
+
+  // Category bars
+  const catHTML = cats.map(cat => {
+    const count = results.filter(v => v.issues.some(i => i.category === cat)).length;
+    const pct = results.length ? ((count / results.length) * 100).toFixed(0) : 0;
+    return `<div class="cat-row"><div class="cat-label">${cat}</div><div class="cat-track"><div class="cat-fill" style="width:${pct}%"></div></div><div class="cat-val">${count} (${pct}%)</div></div>`;
+  }).join('');
+  document.getElementById('catBars').innerHTML = catHTML;
+
+  // Sort listeners
+  document.querySelectorAll('thead th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sort;
+      if (sortKey === key) sortAsc = !sortAsc; else { sortKey = key; sortAsc = true; }
+      applyFilters();
+    });
+  });
+
+  applyFilters();
+}
+
+function severity(v) {
+  if (v.issues.some(i => i.severity === 'critical')) return 'critical';
+  if (v.issues.some(i => i.severity === 'warning')) return 'warning';
+  if (v.issues.length === 0) return 'good';
+  return 'suggestion';
+}
+
+function severityBadge(v) {
+  const s = severity(v);
+  if (s === 'critical') return '<span class="badge critical">Critical</span>';
+  if (s === 'warning') return '<span class="badge warning">Warning</span>';
+  if (s === 'good') return '<span class="badge ok">Good</span>';
+  return '<span class="badge info">Suggestions</span>';
+}
+
+function scoreColor(s) {
+  return s >= 80 ? '#4ade80' : s >= 60 ? '#facc15' : s >= 40 ? '#fb923c' : '#f87171';
+}
+
+function applyFilters() {
+  if (!DATA) return;
+  const search = (document.getElementById('search').value || '').toLowerCase();
+  const sev = document.getElementById('fSeverity').value;
+  const cat = document.getElementById('fCategory').value;
+
+  filtered = DATA.results.filter(v => {
+    if (search && !v.name.toLowerCase().includes(search) && !v.slug.toLowerCase().includes(search)) return false;
+    if (sev === 'critical' && !v.issues.some(i => i.severity === 'critical')) return false;
+    if (sev === 'warning' && (v.issues.some(i => i.severity === 'critical') || !v.issues.some(i => i.severity === 'warning'))) return false;
+    if (sev === 'good' && v.issues.length > 0) return false;
+    if (cat && !v.issues.some(i => i.category === cat)) return false;
+    return true;
+  });
+
+  // Sort
+  filtered.sort((a, b) => {
+    let va, vb;
+    switch (sortKey) {
+      case 'name': va = a.name.toLowerCase(); vb = b.name.toLowerCase(); return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+      case 'score': va = a.score; vb = b.score; break;
+      case 'severity': { const ord = v => v.issues.some(i=>i.severity==='critical')?0:v.issues.some(i=>i.severity==='warning')?1:v.issues.length===0?2:3; va = ord(a); vb = ord(b); break; }
+      case 'desc': va = a.descriptionLength; vb = b.descriptionLength; break;
+      case 'photos': va = a.photoCount; vb = b.photoCount; break;
+      case 'amenities': va = a.amenityCount; vb = b.amenityCount; break;
+      default: va = a.score; vb = b.score;
+    }
+    return sortAsc ? va - vb : vb - va;
+  });
+
+  document.getElementById('resultCount').textContent = `${filtered.length} of ${DATA.results.length} venues`;
+  renderTable();
+}
+
+function renderTable() {
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = filtered.map(v => {
+    const sc = v.score, col = scoreColor(sc);
+    const issues = v.issues.map(i => `<li class="${i.severity}">${i.text}</li>`).join('');
+    const improvements = v.issues.map(i => `<li class="${i.severity}">${i.improvement}</li>`).join('');
+    return `<tr>
+      <td class="venue-name"><a href="${BASE}/venues/${v.slug}" target="_blank">${v.name}</a></td>
+      <td><div class="score-bar"><div class="score-fill" style="width:${sc}%;background:${col}"></div></div><strong style="color:${col}">${sc}%</strong></td>
+      <td>${severityBadge(v)}</td>
+      <td>${v.descriptionLength}</td>
+      <td>${v.photoCount}</td>
+      <td>${v.amenityCount}</td>
+      <td><ul class="issue-list">${issues || '<li class="ok">All checks passed</li>'}</ul></td>
+      <td><ul class="issue-list">${improvements || '<li class="ok">No improvements needed</li>'}</ul></td>
+    </tr>`;
+  }).join('');
+}
+
+function escCSV(s) {
+  s = String(s);
+  return (s.includes(',') || s.includes('"') || s.includes('\n')) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function exportCSV(type) {
+  if (!DATA) return;
+  let csv, filename;
+
+  if (type === 'summary') {
+    const h = ['Venue Name','URL','Score','Severity','Unclaimed Listing','Description Length','Photo Count','Amenity Count','Has Capacity','Has Parking','Has Catering','Has Accommodation','Has Accessibility','Has Email','Has Phone','Has Website','Has Facebook','Has Twitter/X','Has Instagram','Room Count','Issue Count','Critical Issues','Warnings','Suggestions'];
+    const rows = DATA.results.map(v => [
+      v.name, `${BASE}/venues/${v.slug}`, v.score,
+      v.issues.some(i=>i.severity==='critical')?'Critical':v.issues.some(i=>i.severity==='warning')?'Warning':v.issues.length===0?'Good':'Suggestions',
+      v.unclaimed ? 'Yes' : 'No',
+      v.descriptionLength, v.photoCount, v.amenityCount,
+      v.hasCapacity?'Yes':'No', v.hasParking?'Yes':'No', v.hasCatering?'Yes':'No',
+      v.hasAccommodation?'Yes':'No', v.hasAccessibility?'Yes':'No',
+      v.hasEmail?'Yes':'No', v.hasPhone?'Yes':'No', v.hasWebsite?'Yes':'No',
+      v.hasFacebook?'Yes':'No', v.hasTwitter?'Yes':'No', v.hasInstagram?'Yes':'No',
+      v.roomCount, v.issues.length,
+      v.issues.filter(i=>i.severity==='critical').length,
+      v.issues.filter(i=>i.severity==='warning').length,
+      v.issues.filter(i=>i.severity==='suggestion'||i.severity==='info').length
+    ]);
+    csv = [h.map(escCSV).join(','), ...rows.map(r => r.map(escCSV).join(','))].join('\n');
+    filename = 'kentvenues-audit-summary.csv';
+  } else {
+    const h = ['Venue Name','URL','Score','Issue Category','Severity','Issue Description','Recommended Improvement'];
+    const rows = [];
+    for (const v of DATA.results) {
+      for (const i of v.issues) {
+        rows.push([v.name, `${BASE}/venues/${v.slug}`, v.score, i.category, i.severity, i.text, i.improvement]);
+      }
+    }
+    csv = [h.map(escCSV).join(','), ...rows.map(r => r.map(escCSV).join(','))].join('\n');
+    filename = 'kentvenues-issues-detailed.csv';
+  }
+
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+</script>
+</body>
+</html>

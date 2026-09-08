@@ -1,6 +1,4 @@
-# kent-r-d
-
-r@d tool for scraping and auditing kentvenues and other websites
+# Kent Venue Scraper
 
 Scrapes event/wedding/party venue listings across 8 Kent towns, collecting name,
 location, website, venue type, capacity, parking, catering, accommodation,

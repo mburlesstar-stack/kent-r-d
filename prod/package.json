@@ -1,0 +1,12 @@
+{
+  "name": "zooma-venue-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "KentVenues.co.uk listing auditor (Node.js side of the Kent Venue Finder dashboard)",
+  "scripts": {
+    "audit": "node audit.js"
+  },
+  "dependencies": {
+    "jsdom": "^24.1.3"
+  }
+}
